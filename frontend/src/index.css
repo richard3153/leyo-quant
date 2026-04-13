@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #11111b 0%, #1e1e2e 100%);
+}
+
+.card {
+  @apply bg-dark-100 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors;
+}
+
+.glow {
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.1);
+}
+
+.score-bar {
+  @apply h-2 rounded-full overflow-hidden bg-gray-800;
+}
+
+.score-bar-fill {
+  @apply h-full transition-all duration-500;
+}
