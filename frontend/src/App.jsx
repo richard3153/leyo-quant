@@ -281,7 +281,7 @@ export default function App() {
 
       })
 
-      const res = await fetch(`/api/scan?${params}`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/scan?${params}`, { method: 'POST' })
 
       const respData = await res.json()
 

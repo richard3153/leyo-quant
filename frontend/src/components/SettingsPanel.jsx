@@ -50,7 +50,7 @@ export default function SettingsPanel() {
       const formData = new FormData()
       formData.append('content', '### 🎯 乐友量化系统\n\n测试消息发送成功！')
       
-      const res = await fetch('/api/wechat/send', {
+      const res = await fetch(`${API_BASE}/api/wechat/send', {
         method: 'POST',
         body: formData
       })

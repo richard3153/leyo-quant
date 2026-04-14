@@ -43,8 +43,8 @@ export default function RiskMonitor() {
     try {
       // 并行获取基本面和技术面数据
       const [scanRes, techRes] = await Promise.all([
-        fetch(`/api/scan?min_score=0&search=${encodeURIComponent(code)}`, { method: 'POST' }),
-        fetch(`/api/technical/${code}?count=250`)
+        fetch(`${API_BASE}/api/scan?min_score=0&search=${encodeURIComponent(code)}`, { method: 'POST' }),
+        fetch(`${API_BASE}/api/technical/${code}?count=250`)
       ])
       const scanData = await scanRes.json()
       const techData = await techRes.json()
@@ -98,7 +98,7 @@ export default function RiskMonitor() {
       const codes = (pf.positions || []).map(p => p.code).join(',')
       if (codes) {
         try {
-          const realtimeRes = await fetch(`/api/realtime/batch?codes=${encodeURIComponent(codes)}`)
+          const realtimeRes = await fetch(`${API_BASE}/api/realtime/batch?codes=${encodeURIComponent(codes)}`)
           const realtimeData = await realtimeRes.json()
           
           if (realtimeData.results) {
@@ -162,7 +162,7 @@ export default function RiskMonitor() {
     }
 
     try {
-      const res = await fetch(`/api/portfolio/add?code=${newPosition.code}&name=${encodeURIComponent(newPosition.name)}&shares=${newPosition.shares}&avg_cost=${newPosition.avg_cost}&current_price=${newPosition.current_price}`, {
+      const res = await fetch(`${API_BASE}/api/portfolio/add?code=${newPosition.code}&name=${encodeURIComponent(newPosition.name)}&shares=${newPosition.shares}&avg_cost=${newPosition.avg_cost}&current_price=${newPosition.current_price}`, {
         method: 'POST'
       })
       const data = await res.json()
@@ -181,7 +181,7 @@ export default function RiskMonitor() {
     if (!confirm('确定删除该持仓？')) return
     
     try {
-      const res = await fetch(`/api/portfolio/delete/${code}`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/portfolio/delete/${code}`, { method: 'POST' })
       const data = await res.json()
       
       if (data.status === 'ok') {
@@ -209,7 +209,7 @@ export default function RiskMonitor() {
       formData.append('shares', shares)
       formData.append('avg_cost', avg_cost)
       
-      const res = await fetch(`/api/portfolio/update/${code}`, { 
+      const res = await fetch(`${API_BASE}/api/portfolio/update/${code}`, { 
         method: 'POST',
         body: formData
       })
@@ -242,7 +242,7 @@ export default function RiskMonitor() {
         return
       }
       
-      const realtimeRes = await fetch(`/api/realtime/batch?codes=${encodeURIComponent(codes)}`)
+      const realtimeRes = await fetch(`${API_BASE}/api/realtime/batch?codes=${encodeURIComponent(codes)}`)
       const realtimeData = await realtimeRes.json()
       
       // 更新持仓价格
