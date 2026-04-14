@@ -6,10 +6,9 @@ from fastapi import FastAPI, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import subprocess
 import json
-import sys
 from pathlib import Path
+from typing import List
 
 app = FastAPI(title="乐友量化投资系统", version="1.0")
 
@@ -21,13 +20,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 脚本路径
-SCRIPTS_DIR = Path(__file__).parent.parent.parent / "skills" / "leyo-quant-system" / "scripts"
+# 本地模块路径（与 main.py 同目录）
+BACKEND_DIR = Path(__file__).parent
 
 # ─── 股票池 (仅A股) ────────────────────────────────────────
 
 STOCK_POOL = [
-    # 白酒 (8)
     {"code": "600519", "name": "贵州茅台", "market": "A", "industry": "白酒"},
     {"code": "000858", "name": "五粮液", "market": "A", "industry": "白酒"},
     {"code": "000568", "name": "泸州老窖", "market": "A", "industry": "白酒"},
@@ -36,7 +34,6 @@ STOCK_POOL = [
     {"code": "603369", "name": "今世缘", "market": "A", "industry": "白酒"},
     {"code": "000596", "name": "古井贡酒", "market": "A", "industry": "白酒"},
     {"code": "600809", "name": "山西汾酒", "market": "A", "industry": "白酒"},
-    # 银行 (9)
     {"code": "600036", "name": "招商银行", "market": "A", "industry": "银行"},
     {"code": "000001", "name": "平安银行", "market": "A", "industry": "银行"},
     {"code": "601166", "name": "兴业银行", "market": "A", "industry": "银行"},
@@ -46,34 +43,28 @@ STOCK_POOL = [
     {"code": "601939", "name": "建设银行", "market": "A", "industry": "银行"},
     {"code": "601328", "name": "交通银行", "market": "A", "industry": "银行"},
     {"code": "600016", "name": "民生银行", "market": "A", "industry": "银行"},
-    # 保险 (4)
     {"code": "601318", "name": "中国平安", "market": "A", "industry": "保险"},
     {"code": "601601", "name": "中国太保", "market": "A", "industry": "保险"},
     {"code": "601628", "name": "中国人寿", "market": "A", "industry": "保险"},
     {"code": "601336", "name": "新华保险", "market": "A", "industry": "保险"},
-    # 公用事业 (5)
     {"code": "600900", "name": "长江电力", "market": "A", "industry": "水电"},
     {"code": "600028", "name": "中国石化", "market": "A", "industry": "石化"},
     {"code": "601857", "name": "中国石油", "market": "A", "industry": "石油"},
     {"code": "600019", "name": "宝钢股份", "market": "A", "industry": "钢铁"},
     {"code": "601600", "name": "中国铝业", "market": "A", "industry": "有色金属"},
-    # 家电 (6)
     {"code": "000333", "name": "美的集团", "market": "A", "industry": "家电"},
     {"code": "000651", "name": "格力电器", "market": "A", "industry": "家电"},
     {"code": "600690", "name": "海尔智家", "market": "A", "industry": "家电"},
     {"code": "002050", "name": "三花智控", "market": "A", "industry": "家电"},
     {"code": "000404", "name": "长虹美菱", "market": "A", "industry": "家电"},
     {"code": "002242", "name": "九阳股份", "market": "A", "industry": "家电"},
-    # 食品饮料 (8)
     {"code": "600887", "name": "伊利股份", "market": "A", "industry": "乳业"},
     {"code": "000895", "name": "双汇发展", "market": "A", "industry": "肉制品"},
     {"code": "603288", "name": "海天味业", "market": "A", "industry": "调味品"},
-    {"code": "000568", "name": "泸州老窖", "market": "A", "industry": "白酒"},
     {"code": "002507", "name": "涪陵榨菜", "market": "A", "industry": "食品加工"},
     {"code": "300146", "name": "汤臣倍健", "market": "A", "industry": "保健品"},
     {"code": "603517", "name": "绝味食品", "market": "A", "industry": "食品"},
     {"code": "002329", "name": "皇氏集团", "market": "A", "industry": "乳业"},
-    # 医药 (12)
     {"code": "600276", "name": "恒瑞医药", "market": "A", "industry": "医药"},
     {"code": "000538", "name": "云南白药", "market": "A", "industry": "中药"},
     {"code": "300760", "name": "迈瑞医疗", "market": "A", "industry": "医疗器械"},
@@ -86,7 +77,6 @@ STOCK_POOL = [
     {"code": "300003", "name": "乐普医疗", "market": "A", "industry": "医疗器械"},
     {"code": "002219", "name": "恒心医疗", "market": "A", "industry": "医疗器械"},
     {"code": "688180", "name": "君实生物", "market": "A", "industry": "生物制药"},
-    # 汽车 (8)
     {"code": "000625", "name": "长安汽车", "market": "A", "industry": "汽车"},
     {"code": "002594", "name": "比亚迪", "market": "A", "industry": "新能源车"},
     {"code": "601633", "name": "长城汽车", "market": "A", "industry": "汽车"},
@@ -95,14 +85,12 @@ STOCK_POOL = [
     {"code": "000572", "name": "海马汽车", "market": "A", "industry": "汽车"},
     {"code": "600166", "name": "福田汽车", "market": "A", "industry": "汽车"},
     {"code": "002126", "name": "银轮股份", "market": "A", "industry": "汽车零部件"},
-    # 地产 (6)
     {"code": "000002", "name": "万科A", "market": "A", "industry": "房地产"},
     {"code": "001979", "name": "招商蛇口", "market": "A", "industry": "房地产"},
     {"code": "600048", "name": "保利发展", "market": "A", "industry": "房地产"},
     {"code": "600606", "name": "绿地控股", "market": "A", "industry": "房地产"},
     {"code": "001914", "name": "新城控股", "market": "A", "industry": "房地产"},
     {"code": "600383", "name": "金地集团", "market": "A", "industry": "房地产"},
-    # 科技/电子 (12)
     {"code": "000725", "name": "京东方A", "market": "A", "industry": "面板"},
     {"code": "002475", "name": "立讯精密", "market": "A", "industry": "消费电子"},
     {"code": "600588", "name": "用友网络", "market": "A", "industry": "软件"},
@@ -115,62 +103,52 @@ STOCK_POOL = [
     {"code": "002230", "name": "科大讯飞", "market": "A", "industry": "人工智能"},
     {"code": "300033", "name": "同花顺", "market": "A", "industry": "互联网金融"},
     {"code": "002236", "name": "大华股份", "market": "A", "industry": "安防"},
-    # 新能源 (6)
     {"code": "600438", "name": "通威股份", "market": "A", "industry": "光伏"},
     {"code": "601012", "name": "隆基绿能", "market": "A", "industry": "光伏"},
     {"code": "002129", "name": "中环股份", "market": "A", "industry": "光伏"},
     {"code": "300274", "name": "阳光电源", "market": "A", "industry": "光伏"},
     {"code": "601615", "name": "明阳智能", "market": "A", "industry": "风电"},
     {"code": "002459", "name": "晶澳科技", "market": "A", "industry": "光伏"},
-    # 证券 (5)
     {"code": "600030", "name": "中信证券", "market": "A", "industry": "证券"},
     {"code": "601211", "name": "国泰君安", "market": "A", "industry": "证券"},
     {"code": "600837", "name": "海通证券", "market": "A", "industry": "证券"},
     {"code": "000776", "name": "广发证券", "market": "A", "industry": "证券"},
     {"code": "600999", "name": "招商证券", "market": "A", "industry": "证券"},
-    # 基建/建筑 (6)
     {"code": "601390", "name": "中国中铁", "market": "A", "industry": "基建"},
     {"code": "601668", "name": "中国建筑", "market": "A", "industry": "建筑"},
     {"code": "601186", "name": "中国铁建", "market": "A", "industry": "基建"},
     {"code": "601669", "name": "中国电建", "market": "A", "industry": "基建"},
     {"code": "601618", "name": "中国中冶", "market": "A", "industry": "基建"},
     {"code": "600170", "name": "上海建工", "market": "A", "industry": "建筑"},
-    # 物流/出行 (5)
     {"code": "002352", "name": "顺丰控股", "market": "A", "industry": "物流"},
     {"code": "601888", "name": "中国中免", "market": "A", "industry": "免税"},
     {"code": "300059", "name": "东方财富", "market": "A", "industry": "互联网金融"},
     {"code": "600109", "name": "国金证券", "market": "A", "industry": "证券"},
     {"code": "002027", "name": "分众传媒", "market": "A", "industry": "传媒"},
-    # 煤炭/有色 (8)
     {"code": "601088", "name": "中国神华", "market": "A", "industry": "煤炭"},
     {"code": "601225", "name": "陕西煤业", "market": "A", "industry": "煤炭"},
     {"code": "601899", "name": "紫金矿业", "market": "A", "industry": "有色金属"},
     {"code": "600547", "name": "山东黄金", "market": "A", "industry": "黄金"},
-    {"code": "601600", "name": "中国铝业", "market": "A", "industry": "有色金属"},
     {"code": "000630", "name": "铜陵有色", "market": "A", "industry": "有色金属"},
     {"code": "600111", "name": "北方稀土", "market": "A", "industry": "稀土"},
     {"code": "002460", "name": "赣锋锂业", "market": "A", "industry": "锂矿"},
-    # 通信/5G (6)
     {"code": "000063", "name": "中兴通讯", "market": "A", "industry": "通信设备"},
     {"code": "600050", "name": "中国联通", "market": "A", "industry": "通信"},
     {"code": "601728", "name": "中国电信", "market": "A", "industry": "通信"},
     {"code": "600941", "name": "中国移动", "market": "A", "industry": "通信"},
     {"code": "300498", "name": "温氏股份", "market": "A", "industry": "农业养殖"},
     {"code": "002714", "name": "牧原股份", "market": "A", "industry": "农业养殖"},
-    # 游戏/互联网 (6)
     {"code": "002555", "name": "三七互娱", "market": "A", "industry": "游戏"},
     {"code": "300058", "name": "蓝色光标", "market": "A", "industry": "传媒"},
     {"code": "603444", "name": "吉比特", "market": "A", "industry": "游戏"},
     {"code": "002558", "name": "巨人网络", "market": "A", "industry": "游戏"},
     {"code": "300124", "name": "汇川技术", "market": "A", "industry": "工业自动化"},
-    {"code": "002230", "name": "科大讯飞", "market": "A", "industry": "人工智能"},
-    # 白电/轻工 (6)
     {"code": "002024", "name": "苏宁易购", "market": "A", "industry": "零售"},
     {"code": "601933", "name": "永辉超市", "market": "A", "industry": "零售"},
     {"code": "002263", "name": "大东方", "market": "A", "industry": "零售"},
     {"code": "603195", "name": "公牛集团", "market": "A", "industry": "电工"},
     {"code": "002572", "name": "索菲亚", "market": "A", "industry": "家居"},
-    {"code": "603833", "name": "欧派家居", "market": "A", "industry": "家居"},
+    {"code": "603833", "name": "欧派家居", "market": "A", "industry": "家居"}
 ]
 
 
@@ -185,16 +163,15 @@ def analyze_stock(code: str):
     """分析单只股票（数据采集 + 评分 + 信号）"""
     import importlib.util
     
-    # 动态加载模块
     def load_module(name, path):
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
     
-    data_collector = load_module("data_collector", SCRIPTS_DIR / "data_collector.py")
-    factor_scorer = load_module("factor_scorer", SCRIPTS_DIR / "factor_scorer.py")
-    signal_generator = load_module("signal_generator", SCRIPTS_DIR / "signal_generator.py")
+    data_collector = load_module("data_collector", BACKEND_DIR / "data_collector.py")
+    factor_scorer = load_module("factor_scorer", BACKEND_DIR / "factor_scorer.py")
+    signal_generator = load_module("signal_generator", BACKEND_DIR / "signal_generator.py")
 
     data = data_collector.load_company_data(code)
     score = factor_scorer.calculate_total_score(data)
@@ -270,7 +247,7 @@ def get_technical_analysis(code: str, period: str = "daily", count: int = 120):
         "klines_count": len(klines),
     }
 
-# ============================================================
+
 # 回测引擎 v2 - 深度策略分析
 # ============================================================
 
@@ -397,10 +374,10 @@ def scan_pool(
         USE_REAL_FINANCIAL = True
     except ImportError:
         USE_REAL_FINANCIAL = False
-        data_collector = load_module("data_collector", SCRIPTS_DIR / "data_collector.py")
-        factor_scorer = load_module("factor_scorer", SCRIPTS_DIR / "factor_scorer.py")
+        data_collector = load_module("data_collector", BACKEND_DIR / "data_collector.py")
+        factor_scorer = load_module("factor_scorer", BACKEND_DIR / "factor_scorer.py")
     
-    signal_generator = load_module("signal_generator", SCRIPTS_DIR / "signal_generator.py")
+    signal_generator = load_module("signal_generator", BACKEND_DIR / "signal_generator.py")
     
     results = []
     processed_codes = set()
@@ -732,7 +709,7 @@ def risk_check():
         spec.loader.exec_module(module)
         return module
     
-    risk_manager = load_module("risk_manager", SCRIPTS_DIR / "risk_manager.py")
+    risk_manager = load_module("risk_manager", BACKEND_DIR / "risk_manager.py")
     Portfolio = risk_manager.Portfolio
     check_portfolio_risk = risk_manager.check_portfolio_risk
 
@@ -764,7 +741,7 @@ def risk_buy(code: str, price: float, amount: float = 100000):
         spec.loader.exec_module(module)
         return module
     
-    risk_manager = load_module("risk_manager", SCRIPTS_DIR / "risk_manager.py")
+    risk_manager = load_module("risk_manager", BACKEND_DIR / "risk_manager.py")
     Portfolio = risk_manager.Portfolio
     check_buy = risk_manager.check_buy
 
@@ -798,7 +775,7 @@ def add_position(code: str, name: str, shares: int, avg_cost: float, current_pri
         spec.loader.exec_module(module)
         return module
     
-    risk_manager = load_module("risk_manager", SCRIPTS_DIR / "risk_manager.py")
+    risk_manager = load_module("risk_manager", BACKEND_DIR / "risk_manager.py")
     Portfolio = risk_manager.Portfolio
 
     portfolio = Portfolio()
@@ -827,8 +804,8 @@ def sync_portfolio_prices():
         with open(PORTFOLIO_FILE) as f:
             portfolio_data = json.load(f)
         
-        data_collector = load_module("data_collector", SCRIPTS_DIR / "data_collector.py")
-        factor_scorer = load_module("factor_scorer", SCRIPTS_DIR / "factor_scorer.py")
+        data_collector = load_module("data_collector", BACKEND_DIR / "data_collector.py")
+        factor_scorer = load_module("factor_scorer", BACKEND_DIR / "factor_scorer.py")
         
         updated_positions = []
         sync_results = []
@@ -1105,9 +1082,9 @@ def wechat_signal(code: str):
         spec.loader.exec_module(module)
         return module
     
-    data_collector = load_module("data_collector", SCRIPTS_DIR / "data_collector.py")
-    factor_scorer = load_module("factor_scorer", SCRIPTS_DIR / "factor_scorer.py")
-    signal_generator = load_module("signal_generator", SCRIPTS_DIR / "signal_generator.py")
+    data_collector = load_module("data_collector", BACKEND_DIR / "data_collector.py")
+    factor_scorer = load_module("factor_scorer", BACKEND_DIR / "factor_scorer.py")
+    signal_generator = load_module("signal_generator", BACKEND_DIR / "signal_generator.py")
 
     data = data_collector.load_company_data(code)
     score = factor_scorer.calculate_total_score(data)
@@ -1166,29 +1143,6 @@ def wechat_signal(code: str):
 
 # ─── 实时行情 API ──────────────────────────────────────
 
-@app.get("/api/realtime/batch")
-def get_batch_prices(codes: str = ""):
-    """批量获取实时行情，codes用逗号分隔"""
-    try:
-        code_list = [c.strip() for c in codes.split(",") if c.strip()]
-        from realtime_quote import get_batch_realtime_prices
-        results = get_batch_realtime_prices(code_list)
-        return {"results": results, "count": len(results)}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.get("/api/realtime/{code}")
-def get_realtime_price(code: str):
-    """获取单只股票实时行情"""
-    try:
-        from realtime_quote import get_realtime_price as fetch_price
-        result = fetch_price(code)
-        return result
-    except Exception as e:
-        return {"error": str(e), "code": code}
-
-
 @app.get("/api/realtime/portfolio")
 def get_portfolio_realtime():
     """获取持仓股票实时行情"""
@@ -1233,6 +1187,30 @@ def get_portfolio_realtime():
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/api/realtime/batch")
+def get_batch_prices(codes: str = ""):
+    """批量获取实时行情，codes用逗号分隔"""
+    try:
+        code_list = [c.strip() for c in codes.split(",") if c.strip()]
+        from realtime_quote import get_batch_realtime_prices
+        results = get_batch_realtime_prices(code_list)
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/realtime/{code}")
+def get_realtime_price(code: str):
+    """获取单只股票实时行情"""
+    try:
+        from realtime_quote import get_realtime_price as fetch_price
+        result = fetch_price(code)
+        return result
+    except Exception as e:
+        return {"error": str(e), "code": code}
+
 
 
 # ─── 前端静态文件 ────────────────────────────────────────
