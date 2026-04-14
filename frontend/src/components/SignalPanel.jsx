@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { API_BASE } from '../utils/api';
 import { TrendingUp, TrendingDown, Minus, X, Send, CheckCircle, XCircle, Bell } from 'lucide-react'
 
 const fmt = (v, suffix = '') => {
@@ -42,7 +43,7 @@ function StockDetailModal({ stock, onClose, onSendWeChat }) {
     setSending(true)
     setResult(null)
     try {
-      const res = await fetch(`/api/wechat/signal/${stock.code}`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/wechat/signal/${stock.code}`, { method: 'POST' })
       const resData = await res.json()
       setResult(resData)
       if (onSendWeChat) onSendWeChat(resData)

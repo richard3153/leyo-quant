@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { API_BASE } from '../utils/api';
 import { Settings, MessageCircle, CheckCircle, AlertCircle, RefreshCw, HelpCircle, ExternalLink } from 'lucide-react'
 
 export default function SettingsPanel() {
@@ -14,7 +15,7 @@ export default function SettingsPanel() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch('/api/wechat/config')
+      const res = await fetch(`${API_BASE}/api/wechat/config`)
       const data = await res.json()
       setWebhookUrl(data.webhook_url || '')
       setMention(data.mention || '')
@@ -31,7 +32,7 @@ export default function SettingsPanel() {
       formData.append('webhook_url', webhookUrl)
       formData.append('mention', mention)
       
-      const res = await fetch('/api/wechat/config', {
+      const res = await fetch(`${API_BASE}/api/wechat/config`, {
         method: 'POST',
         body: formData
       })

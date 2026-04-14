@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { API_BASE } from '../utils/api';
 import { TrendingUp, TrendingDown, Minus, Star, Shield, DollarSign, BarChart3, Target, Zap, RefreshCw, X, AlertTriangle, CheckCircle2, XCircle, Activity, ArrowUpRight, ArrowDownRight, BarChart2, PieChart, Bell, AlertCircle, Download, Upload, FileText, Lightbulb, Settings, Filter, Search, Plus, Trash2, Edit, CheckCircle, RotateCw, RotateCcw } from 'lucide-react'
 const fmt = (v, suffix = '') => {
   if (v === null || v === undefined || v === '') return '--'
@@ -122,7 +123,7 @@ function TechnicalPanel({ code }) {
   useEffect(() => {
     if (!code) return
     setLoading(true)
-    fetch(`/api/backtest/recommend/${code}`).then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/backtest/recommend/${code}`).then(r => r.json()).then(d => {
       setTa(d)
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -492,7 +493,7 @@ function StockDetailModal({ stock, onClose }) {
   const sendToWeChat = async () => {
     setSending(true)
     try {
-      const res = await fetch(`/api/wechat/signal/${stock.code}`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/wechat/signal/${stock.code}`, { method: 'POST' })
       const resData = await res.json()
       setResult(resData)
     } catch (e) {

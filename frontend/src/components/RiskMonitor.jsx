@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { API_BASE } from '../utils/api';
 import StockDetailModal from './StockDetailModal'
 import { Plus, Trash2, RefreshCw, DollarSign, TrendingUp, TrendingDown, AlertCircle, Download, Upload, FileText, Lightbulb, Target, Shield, RotateCw, Edit, CheckCircle, XCircle } from 'lucide-react'
 
@@ -87,8 +88,8 @@ export default function RiskMonitor() {
     setLoading(true)
     try {
       const [riskRes, portfolioRes] = await Promise.all([
-        fetch('/api/risk/check'),
-        fetch('/api/portfolio')
+        fetch(`${API_BASE}/api/risk/check`),
+        fetch(`${API_BASE}/api/portfolio`)
       ])
       const riskData = await riskRes.json()
       const pf = await portfolioRes.json()
@@ -139,7 +140,7 @@ export default function RiskMonitor() {
       const formData = new FormData()
       formData.append('cash', parseFloat(newCash) || 0)
       
-      const res = await fetch('/api/portfolio/cash', {
+      const res = await fetch(`${API_BASE}/api/portfolio/cash`, {
         method: 'POST',
         body: formData
       })
@@ -265,7 +266,7 @@ export default function RiskMonitor() {
       const totalValue = (pf.cash || 0) + updatedPositions.reduce((sum, p) => sum + (p.market_value || 0), 0)
       
       // 保存到后端
-      const saveRes = await fetch('/api/portfolio/import', {
+      const saveRes = await fetch(`${API_BASE}/api/portfolio/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -363,7 +364,7 @@ export default function RiskMonitor() {
         }
       }
       
-      const res = await fetch('/api/portfolio/import', {
+      const res = await fetch(`${API_BASE}/api/portfolio/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
