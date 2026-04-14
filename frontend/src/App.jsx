@@ -259,9 +259,37 @@ export default function App() {
 
 
 
+  const loadPool = async () => {
+
+    setLoading(true)
+
+    try {
+
+      const res = await fetch(`${API_BASE}/api/pool`)
+
+      const respData = await res.json()
+
+      const pool = respData.pool || []
+
+      setStocks(pool.map(s => ({ code: s.code, name: s.name, market: s.market, industry: s.industry })))
+
+      setTotal(pool.length)
+
+    } catch (e) { console.error(e) }
+
+    setLoading(false)
+
+  }
+
+
+
   const scanPool = async (p = 1, s = search, f = filters) => {
 
     setLoading(true)
+
+    const controller = new AbortController()
+
+    const timer = setTimeout(() => controller.abort(), 60000)
 
     try {
 
@@ -281,7 +309,7 @@ export default function App() {
 
       })
 
-      const res = await fetch(`${API_BASE}/api/scan?${params}`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/scan?${params}`, { method: 'POST', signal: controller.signal })
 
       const respData = await res.json()
 
@@ -301,7 +329,13 @@ export default function App() {
 
       setTotal(respData.total || 0)
 
-    } catch (e) { console.error(e) }
+    } catch (e) {
+
+      if (e.name !== 'AbortError') console.error(e)
+
+      else console.warn('扫描超时(60s)，已取消')
+
+    } finally { clearTimeout(timer) }
 
     setLoading(false)
 
@@ -309,7 +343,7 @@ export default function App() {
 
 
 
-  useEffect(() => { scanPool() }, [])
+  useEffect(() => { loadPool() }, [])
 
   useEffect(() => {
 
