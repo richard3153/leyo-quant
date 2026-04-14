@@ -359,16 +359,19 @@ def scan_pool(
     min_debt_ratio: float = -999, max_debt_ratio: float = 999,
     group_by_industry: bool = False,  # 是否按板块分组
 ):
-    """扫描整个股票池，支持多维度筛选和板块分组"""
-    import importlib.util
-    
+    """扫描整个股票池，支持多维度筛选和板块分组
+
+    优化：批量获取实时行情（1次请求），并发获取财务数据（10线程）
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # ── 模块加载 ────────────────────────────────────────
     def load_module(name, path):
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
-    
-    # 尝试导入真实财务数据模块
+
     try:
         from financial_data import get_financial_data, score_from_financial
         USE_REAL_FINANCIAL = True
@@ -376,15 +379,15 @@ def scan_pool(
         USE_REAL_FINANCIAL = False
         data_collector = load_module("data_collector", BACKEND_DIR / "data_collector.py")
         factor_scorer = load_module("factor_scorer", BACKEND_DIR / "factor_scorer.py")
-    
+
     signal_generator = load_module("signal_generator", BACKEND_DIR / "signal_generator.py")
-    
-    results = []
+
+    # ── 收集所有待处理股票 ────────────────────────────────
     processed_codes = set()
-    
-    # 获取持仓中的股票和实时价格
+    stock_list = []
+
+    # 持仓股票
     portfolio_data = {}
-    portfolio_codes = []
     if PORTFOLIO_FILE.exists():
         try:
             with open(PORTFOLIO_FILE) as f:
@@ -396,99 +399,53 @@ def scan_pool(
                             "name": pos.get("name", ""),
                             "current_price": pos.get("current_price", 0)
                         }
-                        portfolio_codes.append({"code": code, "name": pos.get("name", ""), "is_portfolio": True})
-        except:
+                        stock_list.append({
+                            "code": code, "name": pos.get("name", ""),
+                            "market": "A", "industry": "持仓",
+                            "is_portfolio": True,
+                            "portfolio_price": pos.get("current_price", 0)
+                        })
+                        processed_codes.add(code)
+        except Exception:
             pass
-    
-    # 先处理持仓股票
-    for p in portfolio_codes:
-        code = p["code"]
-        if code in processed_codes:
-            continue
-        processed_codes.add(code)
-        
-        # 搜索过滤
-        if search and search.upper() not in code.upper() and search not in p["name"]:
-            continue
-        
-        try:
-            if USE_REAL_FINANCIAL:
-                # 持仓股票也使用真实财务数据评分
-                fin_data = get_financial_data(code)
-                score_result = score_from_financial(fin_data)
-                
-                # 获取实时价格
-                from realtime_quote import get_realtime_price
-                rt = get_realtime_price(code)
-                current_price = rt.get("current_price", 0) if rt.get("status") == "success" else 0
-                
-                score = {
-                    "total_score": score_result["total_score"],
-                    "rating": score_result["rating"],
-                    "scores": score_result["scores"],
-                    "reasons": score_result["reasons"],
-                    "financial": score_result["financial_data"]
-                }
-                
-                data = {
-                    "price": current_price or portfolio_data.get(code, {}).get("current_price", 0),
-                    "roe": fin_data.get("roe", 0),
-                    "revenue_growth": fin_data.get("revenue_growth", 0),
-                    "profit_growth": fin_data.get("profit_growth", 0),
-                    "gross_margin": fin_data.get("gross_margin", 0),
-                    "debt_ratio": fin_data.get("debt_ratio", 0),
-                    "eps": fin_data.get("eps", 0),
-                    "report_date": fin_data.get("report_date", ""),
-                    "report_type": fin_data.get("report_type", ""),
-                    "source": "eastmoney"
-                }
-            else:
-                data = data_collector.load_company_data(code)
-                if code in portfolio_data and portfolio_data[code]["current_price"]:
-                    data["price"] = portfolio_data[code]["current_price"]
-                score = factor_scorer.calculate_total_score(data)
-            
-            signal = signal_generator.generate_signal(code, data)
-            
-            total_score = score.get("total_score", 0) if isinstance(score, dict) else 0
-            
-            # 持仓股票默认显示，不受评分过滤
-            if total_score >= min_score or True:  # 持仓始终显示
-                results.append({
-                    "code": code,
-                    "name": p["name"],
-                    "market": "A",
-                    "industry": "持仓",
-                    "is_portfolio": True,
-                    "data": data,
-                    "score": score,
-                    "signal": signal,
-                })
-        except:
-            pass
-    
-    # 再处理预设股票池 - 使用真实财务数据评分
+
+    # 预设股票池
     for stock in STOCK_POOL:
         code = stock["code"]
         if code in processed_codes:
             continue
+        stock_list.append({
+            "code": code,
+            "name": stock.get("name", ""),
+            "market": stock.get("market", "A"),
+            "industry": stock.get("industry", "未知"),
+            "is_portfolio": False,
+            "portfolio_price": 0
+        })
         processed_codes.add(code)
-        
-        # 搜索过滤
-        if search and search.upper() not in code.upper() and search not in stock["name"]:
-            continue
-        
+
+    # ── 搜索过滤 ────────────────────────────────────────
+    if search:
+        s_upper = search.upper()
+        stock_list = [s for s in stock_list
+                      if s_upper in s["code"].upper() or search in s["name"]]
+
+    all_codes = [s["code"] for s in stock_list]
+
+    # ── 批量获取实时行情（1次请求） ─────────────────────
+    from realtime_quote import get_batch_realtime_prices
+    prices_map = get_batch_realtime_prices(all_codes)
+
+    # ── 并发获取财务数据并评分（10线程） ─────────────────
+    def score_one(stock_info):
+        code = stock_info["code"]
         try:
             if USE_REAL_FINANCIAL:
-                # 使用东方财富真实财务数据评分
                 fin_data = get_financial_data(code)
                 score_result = score_from_financial(fin_data)
-                
-                # 获取实时价格
-                from realtime_quote import get_realtime_price
-                rt = get_realtime_price(code)
-                current_price = rt.get("current_price", 0) if rt.get("status") == "success" else 0
-                
+                rt = prices_map.get(code, {})
+                current_price = rt.get("current_price", 0) if isinstance(rt, dict) else 0
+
                 score = {
                     "total_score": score_result["total_score"],
                     "rating": score_result["rating"],
@@ -496,9 +453,8 @@ def scan_pool(
                     "reasons": score_result["reasons"],
                     "financial": score_result["financial_data"]
                 }
-                
                 data = {
-                    "price": current_price,
+                    "price": current_price or stock_info["portfolio_price"],
                     "roe": fin_data.get("roe", 0),
                     "revenue_growth": fin_data.get("revenue_growth", 0),
                     "profit_growth": fin_data.get("profit_growth", 0),
@@ -511,49 +467,96 @@ def scan_pool(
                 }
             else:
                 data = data_collector.load_company_data(code)
+                if stock_info["portfolio_price"]:
+                    data["price"] = stock_info["portfolio_price"]
                 score = factor_scorer.calculate_total_score(data)
-            
-            signal = signal_generator.generate_signal(code, data)
-            
-            total_score = score.get("total_score", 0) if isinstance(score, dict) else 0
-            
-            # 评分过滤
-            if total_score >= min_score:
-                results.append({
-                    "code": code,
-                    "name": stock["name"],
-                    "market": stock.get("market", "A"),
-                    "industry": stock.get("industry", "未知"),
-                    "is_portfolio": False,
-                    "data": data,
-                    "score": score,
-                    "signal": signal,
-                })
-        except Exception as e:
-            pass  # 静默处理单只股票失败
 
-    # 如果有搜索词且看起来像股票代码，但没在预设池中找到，尝试实时查询
-    if search and len(search) >= 4 and results == []:
-        # 判断是否像股票代码（6位数字或3-6位字母数字组合）
-        search_upper = search.upper()
-        is_code_like = (
-            search.isdigit() or  # 纯数字
-            search_upper.isalnum() or  # 字母数字组合
-            any(c.isdigit() for c in search)  # 包含数字
-        )
-        
+            return {
+                "code": code,
+                "name": stock_info["name"],
+                "market": stock_info["market"],
+                "industry": stock_info["industry"],
+                "is_portfolio": stock_info["is_portfolio"],
+                "data": data,
+                "score": score,
+            }
+        except Exception as e:
+            return None
+
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(score_one, s): s for s in stock_list}
+        for future in as_completed(futures):
+            r = future.result()
+            if r:
+                results.append(r)
+
+    # 持仓优先，其余按评分降序
+    results.sort(key=lambda x: (
+        not x.get("is_portfolio", False),
+        -(x.get("score", {}).get("total_score", 0) if isinstance(x.get("score"), dict) else 0)
+    ))
+
+    # ── 信号生成 ─────────────────────────────────────────
+    for r in results:
+        try:
+            r["signal"] = signal_generator.generate_signal(r["code"], r["data"])
+        except Exception:
+            r["signal"] = {}
+
+    # ── 多维度筛选 ───────────────────────────────────────
+    filtered_results = []
+    for r in results:
+        s = r.get("score", {})
+        d = r.get("data", {})
+        sig = r.get("signal", {})
+
+        total_score = s.get("total_score", 0) if isinstance(s, dict) else 0
+        price = d.get("price", 0) if isinstance(d, dict) else 0
+        roe = d.get("roe", 0) if isinstance(d, dict) else 0
+        gross_margin = d.get("gross_margin", 0) if isinstance(d, dict) else 0
+        debt_ratio = d.get("debt_ratio", 0) if isinstance(d, dict) else 0
+        rating_val = s.get("rating", "") if isinstance(s, dict) else ""
+        signal_val = sig.get("signal", "") if isinstance(sig, dict) else ""
+
+        if total_score < min_score or total_score > max_score:
+            continue
+        if price < min_price or price > max_price:
+            continue
+        if signal_type and signal_val != signal_type:
+            continue
+        if rating:
+            if rating == "A+" and not rating_val.startswith("A+"):
+                continue
+            elif rating == "A" and not (rating_val.startswith("A") and not rating_val.startswith("A+")):
+                continue
+            elif rating == "B+" and not rating_val.startswith("B+"):
+                continue
+            elif rating == "B" and not (rating_val.startswith("B") and not rating_val.startswith("B+")):
+                continue
+            elif rating == "C" and not rating_val.startswith("C"):
+                continue
+        if roe < min_roe or roe > max_roe:
+            continue
+        if gross_margin < min_gross_margin or gross_margin > max_gross_margin:
+            continue
+        if debt_ratio < min_debt_ratio or debt_ratio > max_debt_ratio:
+            continue
+
+        filtered_results.append(r)
+
+    # ── 搜索补全 ─────────────────────────────────────────
+    if search and len(search) >= 4 and filtered_results == []:
+        s_upper = search.upper()
+        is_code_like = search.isdigit() or s_upper.isalnum() or any(c.isdigit() for c in search)
         if is_code_like:
-            # 尝试作为股票代码查询
             try:
                 from realtime_quote import get_realtime_price
                 rt = get_realtime_price(search)
-                
                 if rt.get("status") == "success" and rt.get("current_price", 0) > 0:
-                    # 获取财务数据评分
                     if USE_REAL_FINANCIAL:
                         fin_data = get_financial_data(search)
                         score_result = score_from_financial(fin_data)
-                        
                         score = {
                             "total_score": score_result["total_score"],
                             "rating": score_result["rating"],
@@ -561,7 +564,6 @@ def scan_pool(
                             "reasons": score_result["reasons"],
                             "financial": score_result["financial_data"]
                         }
-                        
                         data = {
                             "price": rt.get("current_price", 0),
                             "roe": fin_data.get("roe", 0),
@@ -577,10 +579,8 @@ def scan_pool(
                     else:
                         data = data_collector.load_company_data(search)
                         score = factor_scorer.calculate_total_score(data)
-                    
                     signal = signal_generator.generate_signal(search, data)
-                    
-                    results.append({
+                    filtered_results.append({
                         "code": search.upper(),
                         "name": rt.get("name", search),
                         "market": "A",
@@ -590,92 +590,33 @@ def scan_pool(
                         "score": score,
                         "signal": signal,
                     })
-            except:
-                pass  # 搜索失败时静默返回空
+            except Exception:
+                pass
 
-    # 按评分从高到低排序
-    results.sort(key=lambda x: x.get("score", {}).get("total_score", 0) if isinstance(x.get("score"), dict) else 0, reverse=True)
-    
-    # 应用多维度筛选
-    filtered_results = []
-    for r in results:
-        s = r.get("score", {})
-        d = r.get("data", {})
-        sig = r.get("signal", {})
-        
-        total_score = s.get("total_score", 0) if isinstance(s, dict) else 0
-        price = d.get("price", 0) if isinstance(d, dict) else 0
-        roe = d.get("roe", 0) if isinstance(d, dict) else 0
-        gross_margin = d.get("gross_margin", 0) if isinstance(d, dict) else 0
-        debt_ratio = d.get("debt_ratio", 0) if isinstance(d, dict) else 0
-        rating_val = s.get("rating", "") if isinstance(s, dict) else ""
-        signal_val = sig.get("signal", "") if isinstance(sig, dict) else ""
-        
-        # 评分范围
-        if total_score < min_score or total_score > max_score:
-            continue
-        
-        # 价格范围
-        if price < min_price or price > max_price:
-            continue
-        
-        # 交易信号筛选
-        if signal_type and signal_val != signal_type:
-            continue
-        
-        # 评分等级筛选
-        if rating:
-            if rating == "A+" and not rating_val.startswith("A+"):
-                continue
-            elif rating == "A" and not (rating_val.startswith("A") and not rating_val.startswith("A+")):
-                continue
-            elif rating == "B+" and not rating_val.startswith("B+"):
-                continue
-            elif rating == "B" and not (rating_val.startswith("B") and not rating_val.startswith("B+")):
-                continue
-            elif rating == "C" and not rating_val.startswith("C"):
-                continue
-        
-        # ROE范围
-        if roe < min_roe or roe > max_roe:
-            continue
-        
-        # 毛利率范围
-        if gross_margin < min_gross_margin or gross_margin > max_gross_margin:
-            continue
-        
-        # 资产负债率范围
-        if debt_ratio < min_debt_ratio or debt_ratio > max_debt_ratio:
-            continue
-        
-        filtered_results.append(r)
-    
-    # 分页
+    # ── 分页 & 板块分组 ──────────────────────────────────
     total = len(filtered_results)
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
     paginated_results = filtered_results[start_idx:end_idx]
-    
-    # 按板块分组
+
     industries = {}
     for r in filtered_results:
         ind = r.get("industry", "其他")
         if ind not in industries:
             industries[ind] = []
         industries[ind].append(r)
-    
-    # 每个板块内按评分排序
+
     for ind in industries:
-        industries[ind].sort(key=lambda x: x.get("score", {}).get("total_score", 0) if isinstance(x.get("score"), dict) else 0, reverse=True)
-    
-    # 按板块平均评分排序板块
-    sorted_industries = sorted(industries.keys(), key=lambda ind: 
-        sum(x.get("score", {}).get("total_score", 0) for x in industries[ind]) / len(industries[ind]) if industries[ind] else 0, 
-        reverse=True
-    )
-    
-    industry_groups = [{"name": ind, "stocks": industries[ind], "count": len(industries[ind])} for ind in sorted_industries]
-    
+        industries[ind].sort(key=lambda x: x.get("score", {}).get("total_score", 0)
+                            if isinstance(x.get("score"), dict) else 0, reverse=True)
+
+    sorted_industries = sorted(industries.keys(), key=lambda ind:
+        sum(x.get("score", {}).get("total_score", 0) for x in industries[ind]) / len(industries[ind])
+        if industries[ind] else 0, reverse=True)
+
+    industry_groups = [{"name": ind, "stocks": industries[ind], "count": len(industries[ind])}
+                       for ind in sorted_industries]
+
     return {
         "results": paginated_results,
         "total": total,
@@ -684,17 +625,12 @@ def scan_pool(
         "total_pages": (total + page_size - 1) // page_size if total > 0 else 1,
         "industries": industry_groups if group_by_industry else [],
         "filters": {
-            "min_score": min_score,
-            "max_score": max_score,
-            "min_price": min_price,
-            "max_price": max_price,
-            "signal_type": signal_type,
-            "rating": rating,
-            "search": search,
-            "group_by_industry": group_by_industry
+            "min_score": min_score, "max_score": max_score,
+            "min_price": min_price, "max_price": max_price,
+            "signal_type": signal_type, "rating": rating,
+            "search": search, "group_by_industry": group_by_industry
         }
     }
-
 
 # ─── 风控 ───────────────────────────────────────────────
 

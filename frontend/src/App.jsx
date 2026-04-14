@@ -343,7 +343,7 @@ export default function App() {
 
 
 
-  useEffect(() => { loadPool() }, [])
+  useEffect(() => { scanPool() }, [])
 
   useEffect(() => {
 
