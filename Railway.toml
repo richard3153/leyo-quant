@@ -1,0 +1,10 @@
+[build]
+  builder = "docker"
+
+[deploy]
+  numReplicas = 1
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 10
+
+[healthcheck]
+  path = "/api/pool"
