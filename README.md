@@ -13,9 +13,6 @@
 ### 风控监控
 ![风控监控](screenshots/risk-monitor.png)
 
-### 系统设置
-![系统设置](screenshots/settings.png)
-
 ---
 
 ## 📋 功能特性
