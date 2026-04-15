@@ -12,6 +12,17 @@ body {
   background: linear-gradient(135deg, #11111b 0%, #1e1e2e 100%);
 }
 
+/* placeholder 文字颜色优化 */
+::placeholder {
+  color: #6b7280 !important;
+  opacity: 1;
+}
+
+/* 输入框聚焦样式统一 */
+input:focus, select:focus, textarea:focus {
+  color: #f3f4f6;
+}
+
 .card {
   @apply bg-dark-100 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors;
 }

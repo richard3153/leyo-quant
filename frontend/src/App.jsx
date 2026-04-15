@@ -171,7 +171,7 @@ function StockMiniCard({ stock, onClick }) {
 
           </p>
 
-          <p className="text-xs text-gray-500">{stock.industry}</p>
+          <p className="text-xs text-gray-400">{stock.industry}</p>
 
         </div>
 
@@ -195,9 +195,9 @@ function SignalColumn({ title, stocks, onStockClick, color, bgColor, icon: Icon 
 
   return (
 
-    <div className={`rounded-lg border border-gray-700 ${bgColor}`}>
+    <div className={`rounded-lg border border-gray-600 ${bgColor}`}>
 
-      <div className={`flex items-center gap-2 px-4 py-3 border-b border-gray-700 ${color}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 border-b border-gray-600 ${color}`}>
 
         {Icon && <Icon className="w-4 h-4" />}
 
@@ -211,7 +211,7 @@ function SignalColumn({ title, stocks, onStockClick, color, bgColor, icon: Icon 
 
         {stocks.length === 0 ? (
 
-          <p className="text-center text-gray-500 py-4 text-sm">暂无</p>
+          <p className="text-center text-gray-400 py-4 text-sm">暂无</p>
 
         ) : (
 
@@ -381,7 +381,7 @@ export default function App() {
 
     <div className="min-h-screen">
 
-      <header className="border-b border-gray-800 px-6 py-4">
+      <header className="border-b border-gray-700 px-6 py-4">
 
         <div className="max-w-7xl mx-auto flex items-center justify-between">
 
@@ -393,7 +393,7 @@ export default function App() {
 
               <h1 className="text-xl font-bold">乐友量化投资系统</h1>
 
-              <p className="text-xs text-gray-500">价值投资 · 量化评分 v1.0</p>
+              <p className="text-xs text-gray-400">价值投资 · 量化评分 v1.0</p>
 
             </div>
 
@@ -413,7 +413,7 @@ export default function App() {
 
 
 
-      <nav className="border-b border-gray-800 px-6">
+      <nav className="border-b border-gray-700 px-6">
 
         <div className="max-w-7xl mx-auto flex gap-1">
 
@@ -451,9 +451,9 @@ export default function App() {
 
                   <div className="relative">
 
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
-                    <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索股票代码或名称..." className="w-full pl-10 pr-4 py-2 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none" />
+                    <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索股票代码或名称..." className="w-full pl-10 pr-4 py-2 bg-dark-200 rounded-lg border border-gray-600 focus:border-primary focus:outline-none" />
 
                   </div>
 
@@ -471,7 +471,7 @@ export default function App() {
 
               {showFilters && (
 
-                <div className="mt-4 pt-4 border-t border-gray-700">
+                <div className="mt-4 pt-4 border-t border-gray-600">
 
                   <div className="grid grid-cols-6 gap-4">
 
@@ -523,7 +523,7 @@ export default function App() {
 
 
 
-      <footer className="border-t border-gray-800 px-6 py-4 text-center text-gray-500 text-sm">
+      <footer className="border-t border-gray-700 px-6 py-4 text-center text-gray-400 text-sm">
 
         <p>⚠️ 所有交易信号仅供参考，不构成投资建议。投资有风险，入市需谨慎。</p>
 
