@@ -156,7 +156,7 @@ export default function SettingsPanel() {
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
-              className="w-full px-4 py-3 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none text-sm"
+              className="w-full px-4 py-3 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
             />
             <p className="text-xs text-gray-500 mt-2">
               在企业微信群中添加机器人，复制 webhook 地址粘贴到此处
@@ -170,7 +170,7 @@ export default function SettingsPanel() {
               value={mention}
               onChange={(e) => setMention(e.target.value)}
               placeholder="填写手机号或用户ID"
-              className="w-full px-4 py-3 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none text-sm"
+              className="w-full px-4 py-3 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
             />
             <p className="text-xs text-gray-500 mt-2">
               推送消息时会 @ 此人，填写企业微信绑定的手机号

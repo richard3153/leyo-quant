@@ -48,7 +48,7 @@ export default function StockCard({ stock, onClick }) {
         <div>
           <div className="flex items-center gap-2">
             {getSignalIcon(signal.signal)}
-            <span className="text-lg font-bold">{stock.name}</span>
+            <span className="text-lg font-bold text-white">{stock.name}</span>
           </div>
           <p className="text-gray-500 text-sm">{stock.code} · {stock.industry}</p>
         </div>
@@ -74,7 +74,7 @@ export default function StockCard({ stock, onClick }) {
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">价格</span>
-          <span className="font-medium">¥{fmt(data.price)}</span>
+          <span className="font-medium text-white">¥{fmt(data.price)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">ROE</span>

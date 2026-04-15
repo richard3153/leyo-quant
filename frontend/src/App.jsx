@@ -143,7 +143,7 @@ function StockMiniCard({ stock, onClick }) {
 
         <div className="flex items-center gap-2">
 
-          <p className="font-medium text-sm">{stock.name}</p>
+          <p className="font-medium text-sm text-white">{stock.name}</p>
 
           {stock.is_portfolio && <span className="px-1.5 py-0.5 text-[10px] bg-primary/20 text-primary rounded">持</span>}
 
@@ -157,7 +157,7 @@ function StockMiniCard({ stock, onClick }) {
 
         <div>
 
-          <p className="text-lg font-bold">¥{fmt(data.price)}</p>
+          <p className="text-lg font-bold text-white">¥{fmt(data.price)}</p>
 
           <p className={`text-sm font-bold ${getScoreColor(totalScore)}`}>{fmt(totalScore)}分</p>
 
@@ -475,17 +475,17 @@ export default function App() {
 
                   <div className="grid grid-cols-6 gap-4">
 
-                    <div><label className="block text-xs text-gray-400 mb-1">最低评分</label><input type="number" value={tempFilters.minScore} onChange={(e) => setTempFilters({...tempFilters, minScore: Number(e.target.value) || 0})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm" /></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">最低评分</label><input type="number" value={tempFilters.minScore} onChange={(e) => setTempFilters({...tempFilters, minScore: Number(e.target.value) || 0})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm" /></div>
 
-                    <div><label className="block text-xs text-gray-400 mb-1">最高评分</label><input type="number" value={tempFilters.maxScore} onChange={(e) => setTempFilters({...tempFilters, maxScore: Number(e.target.value) || 100})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm" /></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">最高评分</label><input type="number" value={tempFilters.maxScore} onChange={(e) => setTempFilters({...tempFilters, maxScore: Number(e.target.value) || 100})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm" /></div>
 
-                    <div><label className="block text-xs text-gray-400 mb-1">最低价格</label><input type="number" value={tempFilters.minPrice} onChange={(e) => setTempFilters({...tempFilters, minPrice: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm" /></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">最低价格</label><input type="number" value={tempFilters.minPrice} onChange={(e) => setTempFilters({...tempFilters, minPrice: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm" /></div>
 
-                    <div><label className="block text-xs text-gray-400 mb-1">最高价格</label><input type="number" value={tempFilters.maxPrice} onChange={(e) => setTempFilters({...tempFilters, maxPrice: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm" /></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">最高价格</label><input type="number" value={tempFilters.maxPrice} onChange={(e) => setTempFilters({...tempFilters, maxPrice: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm" /></div>
 
-                    <div><label className="block text-xs text-gray-400 mb-1">信号</label><select value={tempFilters.signalType} onChange={(e) => setTempFilters({...tempFilters, signalType: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm"><option value="">全部</option><option value="BUY">买入</option><option value="HOLD">持有</option><option value="SELL">卖出</option></select></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">信号</label><select value={tempFilters.signalType} onChange={(e) => setTempFilters({...tempFilters, signalType: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm"><option value="">全部</option><option value="BUY">买入</option><option value="HOLD">持有</option><option value="SELL">卖出</option></select></div>
 
-                    <div><label className="block text-xs text-gray-400 mb-1">等级</label><select value={tempFilters.rating} onChange={(e) => setTempFilters({...tempFilters, rating: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-sm"><option value="">全部</option><option value="A+">A+</option><option value="A">A</option><option value="B+">B+</option><option value="B">B</option></select></div>
+                    <div><label className="block text-xs text-gray-400 mb-1">等级</label><select value={tempFilters.rating} onChange={(e) => setTempFilters({...tempFilters, rating: e.target.value})} className="w-full px-3 py-2 bg-dark-200 rounded border text-gray-200 text-sm"><option value="">全部</option><option value="A+">A+</option><option value="A">A</option><option value="B+">B+</option><option value="B">B</option></select></div>
 
                   </div>
 

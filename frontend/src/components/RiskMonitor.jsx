@@ -548,7 +548,7 @@ export default function RiskMonitor() {
                 type="number"
                 value={newCash}
                 onChange={(e) => setNewCash(e.target.value)}
-                className="flex-1 px-3 py-2 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none"
+                className="flex-1 px-3 py-2 bg-dark-200 rounded-lg border border-gray-700 focus:border-primary focus:outline-none text-gray-200"
               />
             </div>
           </div>
@@ -628,7 +628,7 @@ export default function RiskMonitor() {
                   value={newPosition.code}
                   onChange={(e) => setNewPosition({...newPosition, code: e.target.value})}
                   placeholder="600519"
-                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-sm"
+                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
                 />
               </div>
               <div>
@@ -638,7 +638,7 @@ export default function RiskMonitor() {
                   value={newPosition.name}
                   onChange={(e) => setNewPosition({...newPosition, name: e.target.value})}
                   placeholder="贵州茅台"
-                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-sm"
+                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
                 />
               </div>
               <div>
@@ -648,7 +648,7 @@ export default function RiskMonitor() {
                   value={newPosition.shares}
                   onChange={(e) => setNewPosition({...newPosition, shares: e.target.value})}
                   placeholder="100"
-                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-sm"
+                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
                 />
               </div>
               <div>
@@ -659,7 +659,7 @@ export default function RiskMonitor() {
                   value={newPosition.avg_cost}
                   onChange={(e) => setNewPosition({...newPosition, avg_cost: e.target.value})}
                   placeholder="1650.00"
-                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-sm"
+                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
                 />
               </div>
               <div>
@@ -670,7 +670,7 @@ export default function RiskMonitor() {
                   value={newPosition.current_price}
                   onChange={(e) => setNewPosition({...newPosition, current_price: e.target.value})}
                   placeholder="1680.00"
-                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-sm"
+                  className="w-full px-3 py-2 bg-dark-300 rounded border border-gray-700 focus:border-primary focus:outline-none text-gray-200 text-sm"
                 />
               </div>
               <div className="flex items-end gap-2">
