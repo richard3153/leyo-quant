@@ -2,6 +2,22 @@
 
 > 基于价值投资理念的A股量化分析与风险管理平台
 
+## 📸 页面预览
+
+### 股票池 · 交易信号
+![股票池-交易信号](screenshots/dashboard.png)
+
+### 个股分析详情
+![个股分析详情](screenshots/stock-detail.png)
+
+### 风控监控
+![风控监控](screenshots/risk-monitor.png)
+
+### 系统设置
+![系统设置](screenshots/settings.png)
+
+---
+
 ## 📋 功能特性
 
 - **多因子量化评分** — 7因子价值投资模型，综合评估股票投资价值
