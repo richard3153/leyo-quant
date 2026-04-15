@@ -366,6 +366,7 @@ def scan_pool(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     # ── 模块加载 ────────────────────────────────────────
+    import importlib.util
     def load_module(name, path):
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
