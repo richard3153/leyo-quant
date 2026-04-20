@@ -386,9 +386,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
 
           <div className="flex items-center gap-3">
-
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center"><span className="text-2xl">🎯</span></div>
-
+            <img src="/logo.svg" alt="LeyoQuant" className="h-10" />
             <div>
 
               <h1 className="text-xl font-bold">乐友量化投资系统</h1>
