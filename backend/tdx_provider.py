@@ -680,13 +680,50 @@ def _to_float(v):
 
 
 # ── 模块自检 ──────────────────────────────────────────
+# 探活缓存：避免每次访问都消耗 tdx 额度
+_PROBE_CACHE = {"ts": 0, "ok": False}
+_PROBE_TTL = 300  # 5 分钟内复用一次探活结果
+
+
 def provider_status() -> dict:
-    """返回当前数据层状态，便于前端/日志展示"""
+    """返回当前数据层状态，便于前端/日志展示。
+
+    关键点：mcporter 进程在 ≠ 通达信服务可用。免费额度耗尽时
+    进程仍在，但调用会返回 'quota has been reached'。因此做**真实探活**：
+    实际调用一次 tdx_quotes，成功才算 tdx 在线，否则标记降级。
+    探活结果缓存 5 分钟，避免高频访问反复消耗额度。
+    """
+    global _PROBE_CACHE
+    import time
+    now = time.time()
+    # 若关闭 tdx，直接返回兜底
+    if not _USE_TDX or not _mcporter_available():
+        return {
+            "tdx_enabled": _USE_TDX,
+            "fallback_enabled": _USE_FALLBACK,
+            "mcporter_available": _mcporter_available(),
+            "tdx_online": False,
+            "provider": "fallback" if _USE_FALLBACK else "none",
+        }
+    # 命中缓存
+    if now - _PROBE_CACHE["ts"] < _PROBE_TTL:
+        tdx_ok = _PROBE_CACHE["ok"]
+    else:
+        tdx_ok = False
+        try:
+            data = _call_tdx("tdx_quotes",
+                            {"code": "600519", "setcode": "1"})
+            if isinstance(data, dict) and (data.get("BaseInfo") or data.get("HQInfo")):
+                tdx_ok = True
+        except Exception:
+            tdx_ok = False
+        _PROBE_CACHE = {"ts": now, "ok": tdx_ok}
     return {
         "tdx_enabled": _USE_TDX,
         "fallback_enabled": _USE_FALLBACK,
         "mcporter_available": _mcporter_available(),
-        "provider": "tdx" if _mcporter_available() else "fallback",
+        "tdx_online": tdx_ok,
+        "provider": "tdx" if tdx_ok else ("fallback" if _USE_FALLBACK else "none"),
     }
 
 

@@ -3,13 +3,17 @@ import { API_BASE } from './utils/api';
 
 
 
-import { TrendingUp, TrendingDown, Shield, Settings, RefreshCw, Search, Filter, X, Bell, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Shield, Settings, RefreshCw, Search, Filter, X, Bell, AlertTriangle, CheckCircle2, XCircle, FileText, Newspaper } from 'lucide-react'
 
 import RiskMonitor from './components/RiskMonitor'
 
 import StockDetailModal from './components/StockDetailModal'
 
 import SettingsPanel from './components/SettingsPanel'
+import DataProviderBadge from './components/DataProviderBadge'
+import ScreenerPage from './components/ScreenerPage'
+import F10Page from './components/F10Page'
+import NewsPage from './components/NewsPage'
 
 
 
@@ -17,6 +21,9 @@ const TABS = [
 
   { id: 'dashboard', label: '股票池 · 交易信号', icon: TrendingUp },
 
+  { id: 'screener', label: '智能选股', icon: Search },
+  { id: 'f10', label: 'F10 财报', icon: FileText },
+  { id: 'news', label: '资讯中心', icon: Newspaper },
   { id: 'risk', label: '风控监控', icon: Shield },
 
   { id: 'settings', label: '设置', icon: Settings },
@@ -394,6 +401,7 @@ export default function App() {
               <p className="text-xs text-gray-400">价值投资 · 量化评分 v1.0</p>
 
             </div>
+            <DataProviderBadge />
 
           </div>
 
@@ -513,6 +521,9 @@ export default function App() {
 
         )}
 
+        {tab === 'screener' && <ScreenerPage />}
+        {tab === 'f10' && <F10Page />}
+        {tab === 'news' && <NewsPage />}
         {tab === 'risk' && <RiskMonitor />}
 
         {tab === 'settings' && <SettingsPanel />}
