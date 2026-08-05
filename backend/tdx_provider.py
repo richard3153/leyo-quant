@@ -21,6 +21,8 @@ import json
 import re
 import os
 import time
+import ssl
+import urllib.request
 from datetime import datetime
 
 
@@ -47,6 +49,113 @@ def _load_fallback(name):
         spec.loader.exec_module(mod)
         _fallback_modules[name] = mod
     return _fallback_modules[name]
+
+
+# ── 东财兜底 HTTP 层 ─────────────────────────────────
+# 通达信 MCP 免费额度耗尽时，用东方财富公开接口兜底（仅公告/核心财务可用，
+# 研报/新闻/选股本机网络无法访问东财 datacenter/push2，故诚实降级）。
+_EM_CTX = ssl.create_default_context()
+_EM_CTX.check_hostname = False
+_EM_CTX.verify_mode = ssl.CERT_NONE
+
+
+def _em_get(url: str, referer: str = "https://emweb.securities.eastmoney.com") -> dict:
+    """东财 JSON 请求（自动处理 utf-8-sig BOM / JSONP 包裹）。"""
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": referer,
+            "Accept": "*/*",
+            "Accept-Encoding": "identity",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10, context=_EM_CTX) as r:
+        raw = r.read()
+    txt = raw.decode("utf-8-sig", "replace")
+    m = re.search(r"\((.*)\)", txt, re.S)
+    if m:
+        txt = m.group(1)
+    return json.loads(txt)
+
+
+def _fallback_notices(name: str = "", code: str = "", top_k: int = 10) -> dict:
+    """东财公告兜底 (np-anotice-stock)。返回 {total, items, source}。"""
+    try:
+        sec = code or ""
+        if not sec and name:
+            # 名称→代码需先模糊匹配，这里尽力而为：用 code 优先
+            pass
+        if not sec:
+            return {"total": 0, "items": [], "source": "none",
+                    "fallback_unavailable": True,
+                    "message": "东财公告兜底需股票代码"}
+        url = (f"https://np-anotice-stock.eastmoney.com/api/security/ann"
+               f"?sr=-1&page_size={top_k}&page_index=1&secCode={sec}")
+        d = _em_get(url, "https://np-anotice-stock.eastmoney.com")
+        lst = (d.get("data") or {}).get("list", [])
+        items = []
+        for it in lst:
+            aid = it.get("announcement_id") or it.get("id") or ""
+            items.append({
+                "title": it.get("title") or it.get("notice_title") or "",
+                "time": (it.get("notice_date") or it.get("eitime") or "")[:10],
+                "url": (f"https://data.eastmoney.com/notices/detail/{sec}.html"
+                        if not it.get("url") else it.get("url")),
+                "source": "东方财富",
+                "summary": it.get("summary") or "",
+            })
+        return {"total": len(items), "items": items, "source": "eastmoney"}
+    except Exception as e:
+        return {"total": 0, "items": [], "source": "none",
+                "fallback_unavailable": True,
+                "message": f"东财公告兜底失败: {str(e)[:80]}"}
+
+
+def _fallback_statements(code: str, stmt_type: str = "income") -> dict:
+    """东财核心财务指标兜底（emweb ZYZBAjaxNew）。
+    通达信三表不可用时，退化为「核心指标单行表」，至少有关键科目。
+    """
+    try:
+        fin = _load_fallback("financial_data").get_financial_data(code)
+        if fin.get("status") != "success":
+            return {"code": code, "stmt_type": stmt_type,
+                    "error": "no_fallback_data", "source": "none",
+                    "fallback_unavailable": True,
+                    "message": "东财核心指标兜底无数据"}
+        # 组装为单列（多期只有最新一期）表格，前端可渲染
+        cols = ["报告期", "营业总收入(亿)", "净利润(亿)", "ROE(%)\n",
+                "毛利率(%)\n", "资产负债率(%)\n", "EPS", "营收增速(%)\n", "净利增速(%)\n"]
+        cols = [c.replace("\n", "") for c in cols]
+        row = {
+            "报告期": (fin.get("report_date") or "")[:10],
+            "营业总收入(亿)": round(fin.get("total_revenue", 0) / 1e8, 2),
+            "净利润(亿)": round(fin.get("net_profit", 0) / 1e8, 2),
+            "ROE(%)\n": fin.get("roe"),
+            "毛利率(%)\n": fin.get("gross_margin"),
+            "资产负债率(%)\n": fin.get("debt_ratio"),
+            "EPS": fin.get("eps"),
+            "营收增速(%)\n": fin.get("revenue_growth"),
+            "净利增速(%)\n": fin.get("profit_growth"),
+        }
+        row = {k.replace("\n", ""): v for k, v in row.items()}
+        return {
+            "code": code, "stmt_type": stmt_type,
+            "columns": cols, "rows": [row],
+            "count": 1, "source": "eastmoney", "simplified": True,
+            "status": "success",
+            "message": "东财核心指标兜底（通达信三表暂不可用）",
+        }
+    except Exception as e:
+        return {"code": code, "stmt_type": stmt_type,
+                "error": str(e), "source": "none",
+                "fallback_unavailable": True,
+                "message": f"东财兜底失败: {str(e)[:80]}"}
+
+
+def _fallback_unavailable(message: str) -> dict:
+    """诚实降级：本机无可用兜底数据源。"""
+    return {"source": "none", "fallback_unavailable": True, "message": message}
 
 
 def _mcporter_available() -> bool:
@@ -457,8 +566,11 @@ def screen_stocks(message: str, rang: str = "AG", page_no: int = 1,
                 return {"total": len(rows), "rows": rows, "source": "tdx"}
         except Exception:
             pass
-    return {"total": 0, "rows": [], "source": "none",
-            "error": "tdx_unavailable"}
+    # 降级：新浪/东财无自然语言选股能力，诚实告知
+    return {"total": 0, "rows": [],
+            **_fallback_unavailable(
+                "选股需通达信 MCP（自然语言选股），当前免费额度已用尽，"
+                "暂无可替代的本地数据源")}
 
 
 # ── 完整 F10 三表 (tdx_api_data) ─────────────────────
@@ -513,8 +625,10 @@ def get_financial_statements(code: str, stmt_type: str = "income",
             return {"code": code, "stmt_type": stmt_type,
                     "error": "empty", "source": "tdx"}
         except Exception as e:
-            return {"code": code, "stmt_type": stmt_type,
-                    "error": str(e), "source": "none"}
+            pass
+    # tdx 不可用时，用东财核心指标兜底
+    if _USE_FALLBACK:
+        return _fallback_statements(code, stmt_type)
     return {"code": code, "stmt_type": stmt_type,
             "error": "tdx_unavailable", "source": "none"}
 
@@ -549,49 +663,74 @@ def _query_wenda(tool: str, params: dict) -> dict:
 
 def query_notices(name: str = "", code: str = "", bdate: str = "",
                   edate: str = "", keywords: str = "", top_k: int = 10) -> dict:
-    """公司公告查询"""
-    params = {"top_k": top_k}
-    if name:
-        params["name"] = name
-    if code:
-        params["symbol"] = code
-    if bdate:
-        params["bdate"] = bdate
-    if edate:
-        params["edate"] = edate
-    if keywords:
-        params["keywords"] = keywords
-    return _query_wenda("wenda_notice_query", params)
+    """公司公告查询。tdx 不可用时降级东财 np-anotice。"""
+    if _mcporter_available():
+        params = {"top_k": top_k}
+        if name:
+            params["name"] = name
+        if code:
+            params["symbol"] = code
+        if bdate:
+            params["bdate"] = bdate
+        if edate:
+            params["edate"] = edate
+        if keywords:
+            params["keywords"] = keywords
+        r = _query_wenda("wenda_notice_query", params)
+        if r.get("source") == "tdx":
+            return r
+        # 落到下方兜底
+    if _USE_FALLBACK:
+        # 优先用 code 兜底；有 name 无 code 时无法精确匹配，仍尝试
+        fb = _fallback_notices(code=code, name=name, top_k=top_k)
+        if fb.get("source") == "eastmoney":
+            return fb
+        return {"total": 0, "items": [], **fb}
+    return {"total": 0, "items": [],
+            **_fallback_unavailable(
+                "公告需通达信 MCP 或东财兜底，当前均不可用")}
 
 
 def query_reports(name: str = "", code: str = "", bdate: str = "",
                   edate: str = "", keywords: str = "", top_k: int = 10) -> dict:
-    """券商研报查询"""
-    params = {"top_k": top_k}
-    if name:
-        params["name"] = name
-    if code:
-        params["symbol"] = code
-    if bdate:
-        params["bdate"] = bdate
-    if edate:
-        params["edate"] = edate
-    if keywords:
-        params["keywords"] = keywords
-    return _query_wenda("wenda_report_query", params)
+    """券商研报查询。本机无可用东财研报源，诚实降级。"""
+    if _mcporter_available():
+        params = {"top_k": top_k}
+        if name:
+            params["name"] = name
+        if code:
+            params["symbol"] = code
+        if bdate:
+            params["bdate"] = bdate
+        if edate:
+            params["edate"] = edate
+        if keywords:
+            params["keywords"] = keywords
+        r = _query_wenda("wenda_report_query", params)
+        if r.get("source") == "tdx":
+            return r
+    return {"total": 0, "items": [],
+            **_fallback_unavailable(
+                "研报需通达信 MCP（本机东财研报源不可用），当前免费额度已用尽")}
 
 
 def query_news(name: str = "", code: str = "", keywords: str = "",
                top_k: int = 10) -> dict:
-    """新闻资讯查询"""
-    params = {"top_k": top_k}
-    if name:
-        params["name"] = name
-    if code:
-        params["symbol"] = code
-    if keywords:
-        params["keywords"] = keywords
-    return _query_wenda("wenda_news_query", params)
+    """新闻资讯查询。本机无可用东财新闻源，诚实降级。"""
+    if _mcporter_available():
+        params = {"top_k": top_k}
+        if name:
+            params["name"] = name
+        if code:
+            params["symbol"] = code
+        if keywords:
+            params["keywords"] = keywords
+        r = _query_wenda("wenda_news_query", params)
+        if r.get("source") == "tdx":
+            return r
+    return {"total": 0, "items": [],
+            **_fallback_unavailable(
+                "新闻需通达信 MCP（本机东财新闻源不可用），当前免费额度已用尽")}
 
 
 # ── K线 (tdx_kline) — 供回测引擎使用 ─────────────────

@@ -29,11 +29,12 @@ export default function F10Page() {
     try {
       const res = await fetch(`${API_BASE}/api/financial-statement/${encodeURIComponent(cv)}?stmt=${sv}`);
       const json = await res.json();
-      if (json.status === 'success' && json.rows?.length) {
+      const ok = (json.status === 'success' || json.source === 'eastmoney') && json.rows?.length;
+      if (ok) {
         setData(json);
       } else {
         setData(null);
-        setError(json.error || '暂无数据（该股票可能无此报表）');
+        setError(json.message || json.error || '暂无数据（该股票可能无此报表）');
       }
     } catch (e) {
       setError('网络错误：' + e.message);
@@ -62,10 +63,10 @@ export default function F10Page() {
 
   // 取前若干列（避免太宽），优先 报告期 + 核心科目
   const displayCols = data?.columns || [];
-  const CORE = ['截止日期', '营业总收入', '营业收入', '净利润', '归母净利润', '基本每股收益',
-    '总资产', '净资产', '负债', '经营活动现金流', '资产负债率'];
-  const cols = displayCols.length > 8
-    ? displayCols.filter((c) => CORE.includes(c)).slice(0, 8).concat(displayCols.slice(0, 0))
+  const CORE = ['报告期', '营业总收入', '营业总收入(亿)', '营业收入', '净利润', '归母净利润',
+    '基本每股收益', '总资产', '净资产', '负债', '经营活动现金流', '资产负债率', 'ROE', '毛利率'];
+  const cols = displayCols.length > 8 && !data?.simplified
+    ? displayCols.filter((c) => CORE.includes(c)).slice(0, 8)
     : displayCols;
 
   return (
@@ -120,8 +121,17 @@ export default function F10Page() {
         <div className="card overflow-x-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold">{data.code} · {STMT_TABS.find((t) => t.id === data.stmt_type)?.label}</h3>
-            <span className="text-xs text-gray-400">共 {data.count} 期 · 来源 {data.source}</span>
+            <span className="text-xs text-gray-400">
+              {data.simplified ? (
+                <span className="text-blue-300">东财核心指标兜底（通达信三表暂不可用）</span>
+              ) : (
+                <>共 {data.count} 期 · 来源 {data.source}</>
+              )}
+            </span>
           </div>
+          {data.simplified && (
+            <div className="text-xs text-blue-300/80 mb-3">此为东方财富核心财务指标（非完整三表），待通达信 MCP 额度恢复后将展示完整多年期报表。</div>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-400 border-b border-gray-600">

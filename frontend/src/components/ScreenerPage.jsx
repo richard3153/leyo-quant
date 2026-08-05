@@ -26,9 +26,15 @@ export default function ScreenerPage() {
     try {
       const res = await fetch(`${API_BASE}/api/screener?message=${encodeURIComponent(q)}&page_size=20`);
       const json = await res.json();
-      if (json.status === 'success') {
+      const ok = json.status === 'success' || json.source === 'tdx' || json.source === 'eastmoney';
+      if (ok && json.rows?.length) {
         setData(json);
+        setError('');
+      } else if (ok) {
+        setData(json);
+        setError('');
       } else {
+        setData(null);
         setError(json.message || '查询失败');
       }
     } catch (e) {
@@ -38,7 +44,7 @@ export default function ScreenerPage() {
     }
   };
 
-  const stocks = data?.data || [];
+  const stocks = data?.rows || [];
 
   return (
     <div className="space-y-6">

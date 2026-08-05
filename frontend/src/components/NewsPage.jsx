@@ -19,6 +19,7 @@ export default function NewsPage() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
+  const [sourceNote, setSourceNote] = useState('');
 
   const current = NEWS_TABS.find((t) => t.id === tab);
 
@@ -33,9 +34,12 @@ export default function NewsPage() {
       params.set('top_k', '15');
       const res = await fetch(`${API_BASE}/api/${tabDef.api}?${params.toString()}`);
       const json = await res.json();
-      if (json.status === 'success') {
+      const ok = json.status === 'success' || json.source === 'tdx' || json.source === 'eastmoney';
+      if (ok) {
         setItems(json.items || []);
         setTotal(json.total || 0);
+        // 兜底数据源提示（东财兜底时标注）
+        setSourceNote(json.source === 'eastmoney' ? '数据来源：东方财富（通达信 MCP 额度已用尽，自动降级）' : '');
       } else {
         setItems([]);
         setError(json.message || json.error || '暂无数据');
@@ -96,6 +100,10 @@ export default function NewsPage() {
 
       {error && (
         <div className="card border-yellow-400/30 bg-yellow-400/10 text-yellow-300 text-sm p-4">{error}</div>
+      )}
+
+      {sourceNote && (
+        <div className="card border-blue-400/30 bg-blue-400/10 text-blue-300 text-sm p-3">{sourceNote}</div>
       )}
 
       <div className="card">
