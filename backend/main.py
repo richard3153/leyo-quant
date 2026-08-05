@@ -152,6 +152,16 @@ STOCK_POOL = [
 ]
 
 
+@app.get("/api/provider-status")
+def get_provider_status():
+    """数据层状态：当前行情/财务数据来源（通达信 MCP 或兜底）"""
+    try:
+        from tdx_provider import provider_status
+        return provider_status()
+    except Exception as e:
+        return {"provider": "unknown", "error": str(e)}
+
+
 @app.get("/api/pool")
 def get_pool():
     """获取股票池"""
@@ -195,11 +205,11 @@ def get_technical_analysis(code: str, period: str = "daily", count: int = 120):
     - 历史回测表现
     """
     from technical_analysis import (
-        get_kline_data, calculate_indicators,
-        generate_buy_sell_signals, backtest
+        calculate_indicators, generate_buy_sell_signals, backtest
     )
+    from backtest_engine import get_kline_data_enhanced
 
-    kd = get_kline_data(code, period=period, count=count)
+    kd = get_kline_data_enhanced(code, period=period, count=count)
     if kd.get("error"):
         return {"error": kd["error"], "code": code}
 
@@ -245,6 +255,7 @@ def get_technical_analysis(code: str, period: str = "daily", count: int = 120):
         },
         "period_days": len(klines),
         "klines_count": len(klines),
+        "kline_source": kd.get("source", "sina"),  # 数据来源标记
     }
 
 
@@ -262,9 +273,12 @@ def deep_backtest(code: str, strategy: str = "combo",
     - 返回完整统计指标
     - 与买入持有基准对比
     """
-    from backtest_engine import backtest_v2, optimize_parameters, compute_all_indicators, get_kline_data
+    from backtest_engine import (
+        backtest_v2, optimize_parameters, compute_all_indicators,
+        get_kline_data_enhanced,
+    )
 
-    kd = get_kline_data(code, count=count)
+    kd = get_kline_data_enhanced(code, period="daily", count=count)
     if kd.get("error"):
         return {"error": kd["error"], "code": code}
 
@@ -319,6 +333,7 @@ def deep_backtest(code: str, strategy: str = "combo",
             "sharpe": opt.get("optimal", {}).get("sharpe_ratio"),
             "max_drawdown": opt.get("optimal", {}).get("max_drawdown"),
         },
+        "kline_source": kd.get("source", "sina"),  # 数据来源标记
     }
 
 
@@ -374,7 +389,9 @@ def scan_pool(
         return module
 
     try:
-        from financial_data import get_financial_data, score_from_financial
+        # 数据层统一入口：tdx_provider 优先通达信 MCP，失败自动降级东方财富/新浪
+        from tdx_provider import get_financial_data
+        from financial_data import score_from_financial
         USE_REAL_FINANCIAL = True
     except ImportError:
         USE_REAL_FINANCIAL = False
@@ -434,7 +451,7 @@ def scan_pool(
     all_codes = [s["code"] for s in stock_list]
 
     # ── 批量获取实时行情（1次请求） ─────────────────────
-    from realtime_quote import get_batch_realtime_prices
+    from tdx_provider import get_batch_realtime_prices
     prices_map = get_batch_realtime_prices(all_codes)
 
     # ── 并发获取财务数据并评分（10线程） ─────────────────
@@ -552,7 +569,7 @@ def scan_pool(
         is_code_like = search.isdigit() or s_upper.isalnum() or any(c.isdigit() for c in search)
         if is_code_like:
             try:
-                from realtime_quote import get_realtime_price
+                from tdx_provider import get_realtime_price
                 rt = get_realtime_price(search)
                 if rt.get("status") == "success" and rt.get("current_price", 0) > 0:
                     if USE_REAL_FINANCIAL:
@@ -1092,7 +1109,7 @@ def get_portfolio_realtime():
         
         codes = [pos.get("code") for pos in portfolio.get("positions", []) if pos.get("code")]
         
-        from realtime_quote import get_batch_realtime_prices
+        from tdx_provider import get_batch_realtime_prices
         results = get_batch_realtime_prices(codes)
         
         # 更新持仓现价
@@ -1131,7 +1148,7 @@ def get_batch_prices(codes: str = ""):
     """批量获取实时行情，codes用逗号分隔"""
     try:
         code_list = [c.strip() for c in codes.split(",") if c.strip()]
-        from realtime_quote import get_batch_realtime_prices
+        from tdx_provider import get_batch_realtime_prices
         results = get_batch_realtime_prices(code_list)
         return {"results": results, "count": len(results)}
     except Exception as e:
@@ -1142,12 +1159,73 @@ def get_batch_prices(codes: str = ""):
 def get_realtime_price(code: str):
     """获取单只股票实时行情"""
     try:
-        from realtime_quote import get_realtime_price as fetch_price
+        from tdx_provider import get_realtime_price as fetch_price
         result = fetch_price(code)
         return result
     except Exception as e:
         return {"error": str(e), "code": code}
 
+
+
+# ─── 通达信增强：自然语言选股 / F10三表 / 资讯 ──────────
+@app.get("/api/screener")
+def api_screener(message: str, rang: str = "AG", page_no: int = 1,
+                 page_size: int = 20):
+    """自然语言条件选股。message示例: 今天涨停 / MACD金叉 / 3连板"""
+    try:
+        from tdx_provider import screen_stocks
+        return screen_stocks(message, rang=rang, page_no=page_no,
+                             page_size=page_size)
+    except Exception as e:
+        return {"error": str(e), "rows": []}
+
+
+@app.get("/api/financial-statement/{code}")
+def api_financial_statement(code: str, stmt: str = "income",
+                           report_type: str = "00101"):
+    """完整财务报表。stmt: income(利润表)/balance(资产)/cashflow(现金流)"""
+    try:
+        from tdx_provider import get_financial_statements
+        return get_financial_statements(code, stmt_type=stmt,
+                                        report_type=report_type)
+    except Exception as e:
+        return {"error": str(e), "code": code}
+
+
+@app.get("/api/notices")
+def api_notices(name: str = "", code: str = "", bdate: str = "",
+                edate: str = "", keywords: str = "", top_k: int = 10):
+    """公司公告查询"""
+    try:
+        from tdx_provider import query_notices
+        return query_notices(name=name, code=code, bdate=bdate,
+                             edate=edate, keywords=keywords, top_k=top_k)
+    except Exception as e:
+        return {"error": str(e), "items": []}
+
+
+@app.get("/api/reports")
+def api_reports(name: str = "", code: str = "", bdate: str = "",
+                edate: str = "", keywords: str = "", top_k: int = 10):
+    """券商研报查询"""
+    try:
+        from tdx_provider import query_reports
+        return query_reports(name=name, code=code, bdate=bdate,
+                             edate=edate, keywords=keywords, top_k=top_k)
+    except Exception as e:
+        return {"error": str(e), "items": []}
+
+
+@app.get("/api/news")
+def api_news(name: str = "", code: str = "", keywords: str = "",
+             top_k: int = 10):
+    """新闻资讯查询"""
+    try:
+        from tdx_provider import query_news
+        return query_news(name=name, code=code, keywords=keywords,
+                          top_k=top_k)
+    except Exception as e:
+        return {"error": str(e), "items": []}
 
 
 # ─── 前端静态文件 ────────────────────────────────────────

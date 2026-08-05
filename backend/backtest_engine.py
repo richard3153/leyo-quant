@@ -21,6 +21,27 @@ from collections import defaultdict
 # 数据获取
 # ============================================================
 
+def get_kline_data_enhanced(code: str, period: str = "daily",
+                            count: int = 500, fq: str = "qfq") -> dict:
+    """增强版K线获取：优先通达信 tdx_kline（支持前复权/多周期/港股美股），
+    失败自动降级到原生新浪 get_kline_data。供回测路由调用。
+    period 映射: daily->daily, weekly->weekly, 其余按新浪默认日线处理。
+    """
+    try:
+        from tdx_provider import get_kline as _tdx_kline
+        tdx_period = "daily" if period in ("daily", "day", "d") else "weekly" \
+            if period in ("weekly", "w") else period
+        r = _tdx_kline(code, period=tdx_period, count=count, fq=fq)
+        if r.get("status") == "success" and r.get("klines"):
+            klines = r["klines"]
+            return {"code": code, "klines": klines, "status": "success",
+                    "source": "tdx"}
+    except Exception:
+        pass
+    # 降级到新浪
+    return get_kline_data(code, period=period, count=count)
+
+
 def get_kline_data(code: str, period: str = "daily", count: int = 500) -> dict:
     """获取K线数据"""
     if code.startswith('6'):
