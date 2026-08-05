@@ -158,6 +158,56 @@ def _fallback_unavailable(message: str) -> dict:
     return {"source": "none", "fallback_unavailable": True, "message": message}
 
 
+def _fallback_news(name: str = "", code: str = "", keywords: str = "",
+                  top_k: int = 10) -> dict:
+    """新浪财经要闻兜底（全市场级，非个股精确筛选）。
+    东财新闻源在本机不可用时，用新浪 feed 提供最新财经要闻。
+    """
+    try:
+        # lid=2510: 新浪财经·科技/产业要闻（本机可稳定访问的财经类源）
+        url = ("https://feed.mix.sina.com.cn/api/roll/get"
+               "?pageid=153&lid=2510&k=&num=%d&page=1" % top_k)
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"},
+        )
+        with urllib.request.urlopen(req, timeout=10, context=_EM_CTX) as r:
+            txt = r.read().decode("utf-8-sig", "replace")
+        m = re.search(r"\{.*\}", txt, re.S)
+        d = json.loads(m.group(0)) if m else {}
+        items_raw = (d.get("result") or {}).get("data") or []
+        items = []
+        for it in items_raw:
+            title = it.get("title") or ""
+            # 若指定了关键词，做粗筛（标题/摘要含关键词）
+            if keywords and keywords not in title and keywords not in (it.get("intro") or ""):
+                continue
+            items.append({
+                "title": title,
+                "time": (it.get("ctime") or it.get("intime") or ""),
+                "url": it.get("url") or "",
+                "source": it.get("media_name") or "新浪财经",
+                "summary": it.get("intro") or it.get("summary") or "",
+            })
+        return {"total": len(items), "items": items, "source": "sina",
+                "note": "新浪财经要闻（非个股级，通达信新闻源暂不可用）"}
+    except Exception as e:
+        return {"total": 0, "items": [], "source": "none",
+                "fallback_unavailable": True,
+                "message": f"新浪新闻兜底失败: {str(e)[:80]}"}
+
+
+def _fallback_reports(name: str = "", code: str = "", keywords: str = "",
+                      top_k: int = 10) -> dict:
+    """研报兜底：本机无可用东财/新浪研报源，诚实降级。
+    研报数据高度结构化（评级/目标价/盈利预测），公开免费源极少，
+    不建议用低质源替代，故明确提示需通达信 MCP。
+    """
+    return {"total": 0, "items": [], "source": "none",
+            "fallback_unavailable": True,
+            "message": "研报需通达信 MCP（本机无可用东财/新浪研报源），当前免费额度已用尽"}
+
+
 def _mcporter_available() -> bool:
     """快速探测 mcporter 是否可用"""
     if not _USE_TDX:
@@ -693,7 +743,7 @@ def query_notices(name: str = "", code: str = "", bdate: str = "",
 
 def query_reports(name: str = "", code: str = "", bdate: str = "",
                   edate: str = "", keywords: str = "", top_k: int = 10) -> dict:
-    """券商研报查询。本机无可用东财研报源，诚实降级。"""
+    """券商研报查询。本机无可用东财/新浪研报源，诚实降级。"""
     if _mcporter_available():
         params = {"top_k": top_k}
         if name:
@@ -709,6 +759,8 @@ def query_reports(name: str = "", code: str = "", bdate: str = "",
         r = _query_wenda("wenda_report_query", params)
         if r.get("source") == "tdx":
             return r
+    if _USE_FALLBACK:
+        return _fallback_reports(name=name, code=code, keywords=keywords, top_k=top_k)
     return {"total": 0, "items": [],
             **_fallback_unavailable(
                 "研报需通达信 MCP（本机东财研报源不可用），当前免费额度已用尽")}
@@ -716,7 +768,7 @@ def query_reports(name: str = "", code: str = "", bdate: str = "",
 
 def query_news(name: str = "", code: str = "", keywords: str = "",
                top_k: int = 10) -> dict:
-    """新闻资讯查询。本机无可用东财新闻源，诚实降级。"""
+    """新闻资讯查询。东财新闻源不可用时，降级新浪财经要闻。"""
     if _mcporter_available():
         params = {"top_k": top_k}
         if name:
@@ -728,6 +780,9 @@ def query_news(name: str = "", code: str = "", keywords: str = "",
         r = _query_wenda("wenda_news_query", params)
         if r.get("source") == "tdx":
             return r
+    if _USE_FALLBACK:
+        kw = keywords or name or code
+        return _fallback_news(name=name, code=code, keywords=kw, top_k=top_k)
     return {"total": 0, "items": [],
             **_fallback_unavailable(
                 "新闻需通达信 MCP（本机东财新闻源不可用），当前免费额度已用尽")}

@@ -34,12 +34,18 @@ export default function NewsPage() {
       params.set('top_k', '15');
       const res = await fetch(`${API_BASE}/api/${tabDef.api}?${params.toString()}`);
       const json = await res.json();
-      const ok = json.status === 'success' || json.source === 'tdx' || json.source === 'eastmoney';
+      const ok = json.status === 'success' || ['tdx', 'eastmoney', 'sina'].includes(json.source);
       if (ok) {
         setItems(json.items || []);
         setTotal(json.total || 0);
-        // 兜底数据源提示（东财兜底时标注）
-        setSourceNote(json.source === 'eastmoney' ? '数据来源：东方财富（通达信 MCP 额度已用尽，自动降级）' : '');
+        // 兜底数据源提示
+        if (json.source === 'eastmoney') {
+          setSourceNote('数据来源：东方财富（通达信 MCP 额度已用尽，自动降级）');
+        } else if (json.source === 'sina') {
+          setSourceNote(json.note || '数据来源：新浪财经要闻（通达信新闻源暂不可用）');
+        } else {
+          setSourceNote('');
+        }
       } else {
         setItems([]);
         setError(json.message || json.error || '暂无数据');
